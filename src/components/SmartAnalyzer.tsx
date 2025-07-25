@@ -10,14 +10,14 @@ import {
     InputLabel,
     Select,
     MenuItem,
+    Button,
     Box,
     Chip,
     LinearProgress,
     Accordion,
     AccordionSummary,
     AccordionDetails,
-    Divider,
-    Tooltip
+    Divider
 } from '@mui/material';
 import {
     ExpandMore as ExpandMoreIcon,
@@ -27,175 +27,190 @@ import {
     TrendingDown,
     ShowChart
 } from '@mui/icons-material';
-import { useTrades } from '../hooks/useTrades';
 
 // --- Types for our analyzer ---
 interface TimeframeAnalysis {
     timeframe: string;
-    rsi: number | null;
-    emaAlignment: 'bullish' | 'bearish' | 'neutral' | null;
-    supportResistance: 'support' | 'resistance' | 'neutral' | null;
-    atr: number | null;
     trend: 'bullish' | 'bearish' | 'neutral' | null;
+    emaAlignment: 'bullish' | 'bearish' | 'neutral' | null;
+    rsi: number | null;
 }
 
 interface TradeSetup {
     symbol: string;
     direction: 'long' | 'short';
-    entryPrice: number;
-    stopLoss: number;
-    takeProfit: number;
-    positionSize: number;
-    riskAmount: number;
-    timeframe: string;
+    entryPrice: number | null;
+    stopLoss: number | null;
+    takeProfit: number | null;
+    // User inputs their desired risk amount
+    desiredRiskAmount: number | null;
 }
 
 interface RiskAnalysis {
-    riskPerTrade: number;
-    rewardPerTrade: number;
-    riskRewardRatio: number;
-    winRateProbability: number; // Based on confluence
-    suggestedPositionSize: number;
-    maxPositionSize: number;
-    tradeConfidence: 'high' | 'medium' | 'low';
+    // What we calculate for the user
+    riskPerUnit: number | null;
+    rewardPerUnit: number | null;
+    riskRewardRatio: number | null;
+    calculatedPositionSize: number | null;
+    potentialReward: number | null;
+    // Our smart suggestion
     suggestedAction: 'strong_buy' | 'buy' | 'weak_buy' | 'weak_sell' | 'sell' | 'strong_sell' | 'no_trade';
+    confidenceLevel: 'high' | 'medium' | 'low';
+    winProbability: number | null;
 }
 
 const SmartAnalyzer: React.FC = () => {
-    const { trades } = useTrades();
     const [setup, setSetup] = useState<TradeSetup>({
         symbol: 'XAUUSD',
         direction: 'long',
-        entryPrice: 0,
-        stopLoss: 0,
-        takeProfit: 0,
-        positionSize: 0,
-        riskAmount: 0,
-        timeframe: '1h'
+        entryPrice: null,
+        stopLoss: null,
+        takeProfit: null,
+        desiredRiskAmount: null // User fills this in
     });
 
     const [analysis, setAnalysis] = useState<TimeframeAnalysis[]>([
-        { timeframe: 'W', rsi: null, emaAlignment: null, supportResistance: null, atr: null, trend: null },
-        { timeframe: 'D', rsi: null, emaAlignment: null, supportResistance: null, atr: null, trend: null },
-        { timeframe: '4h', rsi: null, emaAlignment: null, supportResistance: null, atr: null, trend: null },
-        { timeframe: '3h', rsi: null, emaAlignment: null, supportResistance: null, atr: null, trend: null },
-        { timeframe: '30m', rsi: null, emaAlignment: null, supportResistance: null, atr: null, trend: null },
-        { timeframe: '3m', rsi: null, emaAlignment: null, supportResistance: null, atr: null, trend: null }
+        { timeframe: 'W', trend: null, emaAlignment: null, rsi: null },
+        { timeframe: 'D', trend: null, emaAlignment: null, rsi: null },
+        { timeframe: '4h', trend: null, emaAlignment: null, rsi: null },
+        { timeframe: '1h', trend: null, emaAlignment: null, rsi: null }
     ]);
 
-    const [riskAnalysis, setRiskAnalysis] = useState<RiskAnalysis | null>(null);
-    const [expanded, setExpanded] = useState<string | false>(false);
+    const [riskAnalysis, setRiskAnalysis] = useState<RiskAnalysis>({
+        riskPerUnit: null,
+        rewardPerUnit: null,
+        riskRewardRatio: null,
+        calculatedPositionSize: null,
+        potentialReward: null,
+        suggestedAction: 'no_trade',
+        confidenceLevel: 'low',
+        winProbability: null
+    });
 
+    // Handle changes to the main trade setup
     const handleSetupChange = (field: keyof TradeSetup, value: any) => {
+        // For number fields, convert empty string to null
+        const processedValue = (field === 'entryPrice' || field === 'stopLoss' || field === 'takeProfit' || field === 'desiredRiskAmount')
+            ? (value === '' ? null : Number(value))
+            : value;
+
         setSetup(prev => ({
             ...prev,
-            [field]: value
+            [field]: processedValue
         }));
     };
 
+    // Handle changes to timeframe analysis
     const handleAnalysisChange = (index: number, field: keyof TimeframeAnalysis, value: any) => {
+        // For RSI, convert empty string to null
+        const processedValue = field === 'rsi' ? (value === '' ? null : Number(value)) : value;
+
         setAnalysis(prev => {
             const newAnalysis = [...prev];
-            newAnalysis[index] = { ...newAnalysis[index], [field]: value };
+            newAnalysis[index] = { ...newAnalysis[index], [field]: processedValue };
             return newAnalysis;
         });
     };
 
-    // Calculate risk analysis based on setup and timeframe analysis
-    const calculateRiskAnalysis = (): RiskAnalysis => {
-        if (!setup.entryPrice || !setup.stopLoss || !setup.takeProfit) {
-            return {
-                riskPerTrade: 0,
-                rewardPerTrade: 0,
-                riskRewardRatio: 0,
-                winRateProbability: 0,
-                suggestedPositionSize: 0,
-                maxPositionSize: 0,
-                tradeConfidence: 'low',
-                suggestedAction: 'no_trade'
-            };
+    // Calculate risk analysis whenever setup changes
+    useEffect(() => {
+        if (setup.entryPrice === null || setup.stopLoss === null || setup.takeProfit === null || setup.desiredRiskAmount === null) {
+            // Reset if we don't have all the numbers
+            setRiskAnalysis({
+                riskPerUnit: null,
+                rewardPerUnit: null,
+                riskRewardRatio: null,
+                calculatedPositionSize: null,
+                potentialReward: null,
+                suggestedAction: 'no_trade',
+                confidenceLevel: 'low',
+                winProbability: null
+            });
+            return;
         }
 
-        // Calculate basic risk/reward
-        const riskPerTrade = Math.abs(setup.entryPrice - setup.stopLoss);
-        const rewardPerTrade = Math.abs(setup.takeProfit - setup.entryPrice);
-        const riskRewardRatio = rewardPerTrade / riskPerTrade;
+        // 1. Calculate Risk Per Unit (How much you risk per unit/contract)
+        const riskPerUnit = Math.abs(setup.entryPrice - setup.stopLoss);
 
-        // Count bullish/bearish signals across timeframes
+        // 2. Calculate Reward Per Unit (How much you make per unit/contract)
+        const rewardPerUnit = Math.abs(setup.takeProfit - setup.entryPrice);
+
+        // 3. Calculate Risk/Reward Ratio
+        const riskRewardRatio = rewardPerUnit / riskPerUnit;
+
+        // 4. Calculate Position Size (How many units/contracts to buy)
+        const calculatedPositionSize = setup.desiredRiskAmount / riskPerUnit;
+
+        // 5. Calculate Potential Reward (Total $ you could make)
+        const potentialReward = calculatedPositionSize * rewardPerUnit;
+
+        // 6. Smart Suggestion Logic (Simple for now)
+        let suggestedAction: RiskAnalysis['suggestedAction'] = 'no_trade';
+        let confidenceLevel: RiskAnalysis['confidenceLevel'] = 'low';
+        let winProbability: number | null = null;
+
+        // Count bullish/bearish signals from timeframe analysis
         let bullishSignals = 0;
         let bearishSignals = 0;
-        let neutralSignals = 0;
 
         analysis.forEach(tf => {
-            if (tf.emaAlignment === 'bullish' || tf.trend === 'bullish') bullishSignals++;
-            else if (tf.emaAlignment === 'bearish' || tf.trend === 'bearish') bearishSignals++;
-            else neutralSignals++;
+            if (tf.trend === 'bullish' || tf.emaAlignment === 'bullish') bullishSignals++;
+            if (tf.trend === 'bearish' || tf.emaAlignment === 'bearish') bearishSignals++;
         });
 
-        // Calculate confluence score (0-100)
-        const confluenceScore = (bullishSignals > bearishSignals ? bullishSignals : bearishSignals) / analysis.length * 100;
+        // Simple logic: if confluence + good R:R, suggest trade
+        const isDirectionBullish = setup.direction === 'long';
+        const isDirectionBearish = setup.direction === 'short';
 
-        // Win rate probability based on confluence and R:R
-        const winRateProbability = Math.min(95, Math.max(10, confluenceScore * (riskRewardRatio / 2)));
+        const htTrendBullish = analysis[0]?.trend === 'bullish'; // Weekly trend
+        const htTrendBearish = analysis[0]?.trend === 'bearish';
 
-        // Position sizing suggestions
-        const suggestedPositionSize = setup.riskAmount / riskPerTrade;
-        const maxPositionSize = suggestedPositionSize * 2; // Don't exceed 2x suggested
+        const confluenceBullish = bullishSignals > bearishSignals;
+        const confluenceBearish = bearishSignals > bullishSignals;
 
-        // Determine trade confidence and action
-        let tradeConfidence: 'high' | 'medium' | 'low' = 'low';
-        let suggestedAction: RiskAnalysis['suggestedAction'] = 'no_trade';
-
-        if (confluenceScore >= 70 && riskRewardRatio >= 2) {
-            tradeConfidence = 'high';
-            suggestedAction = setup.direction === 'long' ? 'strong_buy' : 'strong_sell';
-        } else if (confluenceScore >= 50 && riskRewardRatio >= 1.5) {
-            tradeConfidence = 'medium';
-            suggestedAction = setup.direction === 'long' ? 'buy' : 'sell';
-        } else if (confluenceScore >= 30 && riskRewardRatio >= 1) {
-            tradeConfidence = 'low';
-            suggestedAction = setup.direction === 'long' ? 'weak_buy' : 'weak_sell';
+        if (riskRewardRatio >= 2) { // Good risk/reward
+            if (
+                (isDirectionBullish && htTrendBullish && confluenceBullish) ||
+                (isDirectionBearish && htTrendBearish && confluenceBearish)
+            ) {
+                suggestedAction = isDirectionBullish ? 'strong_buy' : 'strong_sell';
+                confidenceLevel = 'high';
+                winProbability = 80;
+            } else if (
+                (isDirectionBullish && (htTrendBullish || confluenceBullish)) ||
+                (isDirectionBearish && (htTrendBearish || confluenceBearish))
+            ) {
+                suggestedAction = isDirectionBullish ? 'buy' : 'sell';
+                confidenceLevel = 'medium';
+                winProbability = 65;
+            } else {
+                suggestedAction = isDirectionBullish ? 'weak_buy' : 'weak_sell';
+                confidenceLevel = 'low';
+                winProbability = 40;
+            }
+        } else if (riskRewardRatio >= 1.5) {
+            suggestedAction = isDirectionBullish ? 'weak_buy' : 'weak_sell';
+            confidenceLevel = 'low';
+            winProbability = 30;
         } else {
-            tradeConfidence = 'low';
             suggestedAction = 'no_trade';
+            confidenceLevel = 'low';
+            winProbability = 10;
         }
 
-        return {
-            riskPerTrade,
-            rewardPerTrade,
+        setRiskAnalysis({
+            riskPerUnit,
+            rewardPerUnit,
             riskRewardRatio,
-            winRateProbability,
-            suggestedPositionSize,
-            maxPositionSize,
-            tradeConfidence,
-            suggestedAction
-        };
-    };
+            calculatedPositionSize,
+            potentialReward,
+            suggestedAction,
+            confidenceLevel,
+            winProbability
+        });
+    }, [setup, analysis]); // Re-calculate when setup or analysis changes
 
-    // Run analysis when setup or analysis changes
-    useEffect(() => {
-        const newRiskAnalysis = calculateRiskAnalysis();
-        setRiskAnalysis(newRiskAnalysis);
-    }, [setup, analysis]);
-
-    const handleAccordionChange = (panel: string) => (event: React.SyntheticEvent, isExpanded: boolean) => {
-        setExpanded(isExpanded ? panel : false);
-    };
-
-    const getSignalColor = (signal: any) => {
-        if (signal === 'bullish') return 'success';
-        if (signal === 'bearish') return 'error';
-        if (signal === 'support') return 'success';
-        if (signal === 'resistance') return 'error';
-        return 'default';
-    };
-
-    const getSignalIcon = (signal: any) => {
-        if (signal === 'bullish' || signal === 'support') return <TrendingUp fontSize="small" />;
-        if (signal === 'bearish' || signal === 'resistance') return <TrendingDown fontSize="small" />;
-        return <ShowChart fontSize="small" />;
-    };
-
+    // Helper functions for display
     const getActionColor = (action: RiskAnalysis['suggestedAction']) => {
         switch (action) {
             case 'strong_buy': return 'success';
@@ -227,10 +242,13 @@ const SmartAnalyzer: React.FC = () => {
                     <Typography variant="h5" gutterBottom>
                         🤖 Smart Top-Down Analyzer
                     </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                        Enter your trade details and let Homie calculate your risk and suggest if it's a good trade!
+                    </Typography>
 
-                    {/* Trade Setup */}
+                    {/* Trade Setup - Simple Inputs */}
                     <Box sx={{ mb: 3 }}>
-                        <Typography variant="h6" gutterBottom>🎯 Trade Setup</Typography>
+                        <Typography variant="h6" gutterBottom>🎯 Your Trade Setup</Typography>
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}>
                             <TextField
                                 label="Symbol"
@@ -253,34 +271,35 @@ const SmartAnalyzer: React.FC = () => {
                             <TextField
                                 label="Entry Price"
                                 type="number"
-                                value={setup.entryPrice || ''}
-                                onChange={(e) => handleSetupChange('entryPrice', parseFloat(e.target.value) || 0)}
+                                value={setup.entryPrice ?? ''}
+                                onChange={(e) => handleSetupChange('entryPrice', e.target.value)}
                                 size="small"
                                 sx={{ width: 120 }}
                             />
                             <TextField
                                 label="Stop Loss"
                                 type="number"
-                                value={setup.stopLoss || ''}
-                                onChange={(e) => handleSetupChange('stopLoss', parseFloat(e.target.value) || 0)}
+                                value={setup.stopLoss ?? ''}
+                                onChange={(e) => handleSetupChange('stopLoss', e.target.value)}
                                 size="small"
                                 sx={{ width: 120 }}
                             />
                             <TextField
                                 label="Take Profit"
                                 type="number"
-                                value={setup.takeProfit || ''}
-                                onChange={(e) => handleSetupChange('takeProfit', parseFloat(e.target.value) || 0)}
+                                value={setup.takeProfit ?? ''}
+                                onChange={(e) => handleSetupChange('takeProfit', e.target.value)}
                                 size="small"
                                 sx={{ width: 120 }}
                             />
                             <TextField
                                 label="Risk Amount ($)"
                                 type="number"
-                                value={setup.riskAmount || ''}
-                                onChange={(e) => handleSetupChange('riskAmount', parseFloat(e.target.value) || 0)}
+                                value={setup.desiredRiskAmount ?? ''}
+                                onChange={(e) => handleSetupChange('desiredRiskAmount', e.target.value)}
                                 size="small"
                                 sx={{ width: 120 }}
+                                helperText="How much $ do you want to risk?"
                             />
                         </Box>
                     </Box>
@@ -288,23 +307,17 @@ const SmartAnalyzer: React.FC = () => {
                     <Divider sx={{ my: 2 }} />
 
                     {/* Timeframe Analysis */}
-                    <Typography variant="h6" gutterBottom>📊 Timeframe Analysis</Typography>
+                    <Typography variant="h6" gutterBottom>📊 Top-Down Analysis</Typography>
                     {analysis.map((tf, index) => (
-                        <Accordion
-                            key={tf.timeframe}
-                            expanded={expanded === `panel${index}`}
-                            onChange={handleAccordionChange(`panel${index}`)}
-                            sx={{ mb: 1 }}
-                        >
+                        <Accordion key={tf.timeframe} sx={{ mb: 1 }}>
                             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                                 <Typography sx={{ width: '15%', flexShrink: 0 }}>
                                     <strong>{tf.timeframe}</strong>
                                 </Typography>
                                 <Typography sx={{ color: 'text.secondary' }}>
-                                    {tf.trend ? `${tf.trend.toUpperCase()} | ` : ''}
-                                    {tf.emaAlignment ? `EMA: ${tf.emaAlignment.toUpperCase()} | ` : ''}
-                                    {tf.rsi ? `RSI: ${tf.rsi.toFixed(0)} | ` : ''}
-                                    {tf.supportResistance ? `S/R: ${tf.supportResistance.toUpperCase()}` : ''}
+                                    {tf.trend ? `Trend: ${tf.trend} | ` : ''}
+                                    {tf.emaAlignment ? `EMA: ${tf.emaAlignment} | ` : ''}
+                                    {tf.rsi ? `RSI: ${tf.rsi}` : ''}
                                 </Typography>
                             </AccordionSummary>
                             <AccordionDetails>
@@ -336,28 +349,8 @@ const SmartAnalyzer: React.FC = () => {
                                     <TextField
                                         label="RSI"
                                         type="number"
-                                        value={tf.rsi || ''}
-                                        onChange={(e) => handleAnalysisChange(index, 'rsi', parseFloat(e.target.value) || null)}
-                                        size="small"
-                                        sx={{ width: 100 }}
-                                    />
-                                    <FormControl size="small" sx={{ width: 150 }}>
-                                        <InputLabel>Support/Resistance</InputLabel>
-                                        <Select
-                                            value={tf.supportResistance || ''}
-                                            label="Support/Resistance"
-                                            onChange={(e) => handleAnalysisChange(index, 'supportResistance', e.target.value || null)}
-                                        >
-                                            <MenuItem value="support">🟢 Support</MenuItem>
-                                            <MenuItem value="resistance">🔴 Resistance</MenuItem>
-                                            <MenuItem value="neutral">⚪ Neutral</MenuItem>
-                                        </Select>
-                                    </FormControl>
-                                    <TextField
-                                        label="ATR"
-                                        type="number"
-                                        value={tf.atr || ''}
-                                        onChange={(e) => handleAnalysisChange(index, 'atr', parseFloat(e.target.value) || null)}
+                                        value={tf.rsi ?? ''}
+                                        onChange={(e) => handleAnalysisChange(index, 'rsi', e.target.value)}
                                         size="small"
                                         sx={{ width: 100 }}
                                     />
@@ -368,101 +361,90 @@ const SmartAnalyzer: React.FC = () => {
 
                     <Divider sx={{ my: 2 }} />
 
-                    {/* Risk Analysis */}
-                    {riskAnalysis && (
-                        <Box>
-                            <Typography variant="h6" gutterBottom>💡 Smart Risk Analysis</Typography>
+                    {/* Risk Analysis - Clear Calculations */}
+                    <Typography variant="h6" gutterBottom>💡 Homie's Risk Calculation</Typography>
 
-                            {/* Action Suggestion */}
-                            <Box sx={{ mb: 2, textAlign: 'center' }}>
-                                <Chip
-                                    label={getActionLabel(riskAnalysis.suggestedAction)}
-                                    color={getActionColor(riskAnalysis.suggestedAction)}
-                                    size='medium'
-                                    sx={{ fontSize: '1.2rem', py: 2, px: 3 }}
+                    {/* Action Suggestion */}
+                    <Box sx={{ mb: 2, textAlign: 'center' }}>
+                        <Chip
+                            label={getActionLabel(riskAnalysis.suggestedAction)}
+                            color={getActionColor(riskAnalysis.suggestedAction)}
+                            size="medium"
+                            sx={{ fontSize: '1.1rem', py: 2, px: 3 }}
+                        />
+                    </Box>
+
+                    {/* Key Metrics - What Matters */}
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mb: 2 }}>
+                        <Box sx={{ flex: 1, minWidth: 200, p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
+                            <Typography variant="subtitle2" color="text.secondary">Risk Per Unit</Typography>
+                            <Typography variant="h6">
+                                ${riskAnalysis.riskPerUnit?.toFixed(5) ?? '0.00000'}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                                (Entry - Stop Loss)
+                            </Typography>
+                        </Box>
+                        <Box sx={{ flex: 1, minWidth: 200, p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
+                            <Typography variant="subtitle2" color="text.secondary">R:R Ratio</Typography>
+                            <Typography
+                                variant="h6"
+                                color={
+                                    (riskAnalysis.riskRewardRatio ?? 0) >= 2 ? 'success.main' :
+                                        (riskAnalysis.riskRewardRatio ?? 0) >= 1.5 ? 'warning.main' : 'error.main'
+                                }
+                            >
+                                {(riskAnalysis.riskRewardRatio ?? 0).toFixed(2)}:1
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                                (Reward / Risk)
+                            </Typography>
+                        </Box>
+                        <Box sx={{ flex: 1, minWidth: 200, p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
+                            <Typography variant="subtitle2" color="text.secondary">Position Size</Typography>
+                            <Typography variant="h6">
+                                {riskAnalysis.calculatedPositionSize?.toFixed(2) ?? '0.00'}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                                (Risk Amount / Risk Per Unit)
+                            </Typography>
+                        </Box>
+                    </Box>
+
+                    {/* Potential Reward */}
+                    <Box sx={{ mb: 2, p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
+                        <Typography variant="subtitle2" color="text.secondary">Potential Reward</Typography>
+                        <Typography variant="h5" color="success.main">
+                            ${riskAnalysis.potentialReward?.toFixed(2) ?? '0.00'}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                            (Position Size × Reward Per Unit)
+                        </Typography>
+                    </Box>
+
+                    {/* Confidence & Probability */}
+                    {riskAnalysis.winProbability !== null && (
+                        <Box sx={{ mb: 2 }}>
+                            <Typography variant="subtitle2" color="text.secondary">Win Probability</Typography>
+                            <Typography variant="h6">{riskAnalysis.winProbability.toFixed(0)}%</Typography>
+                            <LinearProgress
+                                variant="determinate"
+                                value={riskAnalysis.winProbability}
+                                color={
+                                    riskAnalysis.winProbability >= 70 ? 'success' :
+                                        riskAnalysis.winProbability >= 50 ? 'warning' : 'error'
+                                }
+                            />
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                                Confidence: <Chip
+                                    label={riskAnalysis.confidenceLevel.toUpperCase()}
+                                    color={
+                                        riskAnalysis.confidenceLevel === 'high' ? 'success' :
+                                            riskAnalysis.confidenceLevel === 'medium' ? 'warning' : 'error'
+                                    }
+                                    size="small"
                                 />
-                            </Box>
-
-                            {/* Key Metrics */}
-                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mb: 2 }}>
-                                <Box sx={{ flex: 1, minWidth: 200 }}>
-                                    <Typography variant="subtitle2" color="text.secondary">Risk/Reward Ratio</Typography>
-                                    <Typography variant="h6" color={riskAnalysis.riskRewardRatio >= 2 ? 'success.main' : riskAnalysis.riskRewardRatio >= 1.5 ? 'warning.main' : 'error.main'}>
-                                        {riskAnalysis.riskRewardRatio.toFixed(2)}:1
-                                    </Typography>
-                                </Box>
-                                <Box sx={{ flex: 1, minWidth: 200 }}>
-                                    <Typography variant="subtitle2" color="text.secondary">Win Probability</Typography>
-                                    <Typography variant="h6">{riskAnalysis.winRateProbability.toFixed(1)}%</Typography>
-                                    <LinearProgress
-                                        variant="determinate"
-                                        value={riskAnalysis.winRateProbability}
-                                        color={riskAnalysis.winRateProbability >= 70 ? 'success' : riskAnalysis.winRateProbability >= 50 ? 'warning' : 'error'}
-                                    />
-                                </Box>
-                                <Box sx={{ flex: 1, minWidth: 200 }}>
-                                    <Typography variant="subtitle2" color="text.secondary">Confidence Level</Typography>
-                                    <Chip
-                                        label={riskAnalysis.tradeConfidence.toUpperCase()}
-                                        color={riskAnalysis.tradeConfidence === 'high' ? 'success' : riskAnalysis.tradeConfidence === 'medium' ? 'warning' : 'error'}
-                                    />
-                                </Box>
-                            </Box>
-
-                            {/* Position Sizing */}
-                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mb: 2 }}>
-                                <Box sx={{ flex: 1, minWidth: 200 }}>
-                                    <Typography variant="subtitle2" color="text.secondary">Suggested Position Size</Typography>
-                                    <Typography variant="h6">{riskAnalysis.suggestedPositionSize.toFixed(2)}</Typography>
-                                </Box>
-                                <Box sx={{ flex: 1, minWidth: 200 }}>
-                                    <Typography variant="subtitle2" color="text.secondary">Max Position Size</Typography>
-                                    <Typography variant="h6">{riskAnalysis.maxPositionSize.toFixed(2)}</Typography>
-                                </Box>
-                                <Box sx={{ flex: 1, minWidth: 200 }}>
-                                    <Typography variant="subtitle2" color="text.secondary">Risk Per Trade</Typography>
-                                    <Typography variant="h6">${riskAnalysis.riskPerTrade.toFixed(5)}</Typography>
-                                </Box>
-                            </Box>
-
-                            {/* Trade Rules Check */}
-                            <Box sx={{ mt: 2 }}>
-                                <Typography variant="subtitle2" gutterBottom>📋 Trade Rules Check</Typography>
-                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                                    <Tooltip title="Higher timeframe trend aligns with trade direction">
-                                        <Chip
-                                            icon={setup.direction === 'long' && analysis[0].trend === 'bullish' ? <CheckIcon /> : <CancelIcon />}
-                                            label="HTF Trend Align"
-                                            color={setup.direction === 'long' && analysis[0].trend === 'bullish' ? 'success' : setup.direction === 'short' && analysis[0].trend === 'bearish' ? 'success' : 'default'}
-                                            size="small"
-                                        />
-                                    </Tooltip>
-                                    <Tooltip title="Multiple timeframes confirm the trade direction">
-                                        <Chip
-                                            icon={riskAnalysis.winRateProbability > 60 ? <CheckIcon /> : <CancelIcon />}
-                                            label="Multi-TF Confluence"
-                                            color={riskAnalysis.winRateProbability > 60 ? 'success' : 'default'}
-                                            size="small"
-                                        />
-                                    </Tooltip>
-                                    <Tooltip title="Risk/Reward ratio is at least 1.5:1">
-                                        <Chip
-                                            icon={riskAnalysis.riskRewardRatio >= 1.5 ? <CheckIcon /> : <CancelIcon />}
-                                            label="Good R:R Ratio"
-                                            color={riskAnalysis.riskRewardRatio >= 1.5 ? 'success' : 'default'}
-                                            size="small"
-                                        />
-                                    </Tooltip>
-                                    <Tooltip title="Stop loss is placed beyond key support/resistance">
-                                        <Chip
-                                            icon={<CheckIcon />}
-                                            label="Proper SL Placement"
-                                            color="success"
-                                            size="small"
-                                        />
-                                    </Tooltip>
-                                </Box>
-                            </Box>
+                            </Typography>
                         </Box>
                     )}
                 </CardContent>
