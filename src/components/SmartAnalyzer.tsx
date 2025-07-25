@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect } from 'react';
 import {
@@ -10,7 +9,6 @@ import {
     InputLabel,
     Select,
     MenuItem,
-    Button,
     Box,
     Chip,
     LinearProgress,
@@ -20,12 +18,7 @@ import {
     Divider
 } from '@mui/material';
 import {
-    ExpandMore as ExpandMoreIcon,
-    CheckCircle as CheckIcon,
-    Cancel as CancelIcon,
-    TrendingUp,
-    TrendingDown,
-    ShowChart
+    ExpandMore as ExpandMoreIcon
 } from '@mui/icons-material';
 
 // --- Types for our analyzer ---

@@ -80,6 +80,9 @@ const TradeList = () => {
     // Pagination
     const handleChangePage = (event: unknown, newPage: number) => {
         setPage(newPage);
+        console.log('====================================');
+        console.log(event);
+        console.log('====================================');
     };
 
     const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
