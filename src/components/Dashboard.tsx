@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react'
 import {
-    Grid,
     Card,
     CardContent,
     Typography,
@@ -18,7 +17,7 @@ import {
 import { useTrades } from '../hooks/useTrades'
 import { calculateStats } from '../utils/calculations'
 import type { TradeStats } from '../types/trade'
-// import { TradeStats } from '../types/trade'
+
 
 const Dashboard = () => {
     const { trades, loading } = useTrades()
@@ -75,131 +74,140 @@ const Dashboard = () => {
     )
 
     return (
-        <Grid container spacing={3}>
+        <Box sx={{ flexGrow: 1 }}>
             {/* Performance Cards */}
-            <Grid item xs={12} md={3}>
-                <StatCard
-                    title="Win Rate"
-                    value={`${stats.winRate.toFixed(1)}%`}
-                    icon={<ShowChart />}
-                    color={stats.winRate >= 50 ? 'success' : 'error'}
-                    trend={stats.winRate - 50}
-                />
-            </Grid>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mb: 3 }}>
+                <Box sx={{ width: { xs: '100%', md: '23%' } }}>
+                    <StatCard
+                        title="Win Rate"
+                        value={`${stats.winRate.toFixed(1)}%`}
+                        icon={<ShowChart />}
+                        color={stats.winRate >= 50 ? 'success' : 'error'}
+                        trend={stats.winRate - 50}
+                    />
+                </Box>
 
-            <Grid item xs={12} md={3}>
-                <StatCard
-                    title="Total P&L"
-                    value={`$${stats.totalPnL.toFixed(2)}`}
-                    icon={<AccountBalanceWallet />}
-                    color={stats.totalPnL >= 0 ? 'success' : 'error'}
-                    trend={stats.totalPnL}
-                />
-            </Grid>
+                <Box sx={{ width: { xs: '100%', md: '23%' } }}>
+                    <StatCard
+                        title="Total P&L"
+                        value={`$${stats.totalPnL.toFixed(2)}`}
+                        icon={<AccountBalanceWallet />}
+                        color={stats.totalPnL >= 0 ? 'success' : 'error'}
+                        trend={stats.totalPnL}
+                    />
+                </Box>
 
-            <Grid item xs={12} md={3}>
-                <StatCard
-                    title="Avg Win"
-                    value={`$${stats.avgWin.toFixed(2)}`}
-                    icon={<TrendingUp />}
-                    color="success"
-                />
-            </Grid>
+                <Box sx={{ width: { xs: '100%', md: '23%' } }}>
+                    <StatCard
+                        title="Avg Win"
+                        value={`$${stats.avgWin.toFixed(2)}`}
+                        icon={<TrendingUp />}
+                        color="success"
+                    />
+                </Box>
 
-            <Grid item xs={12} md={3}>
-                <StatCard
-                    title="Avg Loss"
-                    value={`$${Math.abs(stats.avgLoss).toFixed(2)}`}
-                    icon={<TrendingDown />}
-                    color="error"
-                />
-            </Grid>
+                <Box sx={{ width: { xs: '100%', md: '23%' } }}>
+                    <StatCard
+                        title="Avg Loss"
+                        value={`$${Math.abs(stats.avgLoss).toFixed(2)}`}
+                        icon={<TrendingDown />}
+                        color="error"
+                    />
+                </Box>
+            </Box>
 
-            {/* Recent Performance */}
-            <Grid item xs={12} md={8}>
-                <Card>
-                    <CardContent>
-                        <Typography variant="h6" gutterBottom>
-                            Recent Performance
-                        </Typography>
-                        <Box sx={{ mb: 2 }}>
-                            <Typography variant="body2" color="text.secondary">
-                                Last 10 Trades: {stats.recentWinRate.toFixed(1)}% Win Rate
+            {/* Recent Performance and Quick Stats */}
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mb: 3 }}>
+                <Box sx={{ width: { xs: '100%', md: '65%' } }}>
+                    <Card>
+                        <CardContent>
+                            <Typography variant="h6" gutterBottom>
+                                Recent Performance
                             </Typography>
-                            <LinearProgress
-                                variant="determinate"
-                                value={stats.recentWinRate}
-                                color={stats.recentWinRate >= 50 ? 'success' : 'error'}
-                                sx={{ mt: 1 }}
-                            />
-                        </Box>
-                    </CardContent>
-                </Card>
-            </Grid>
+                            <Box sx={{ mb: 2 }}>
+                                <Typography variant="body2" color="text.secondary">
+                                    Last 10 Trades: {stats.recentWinRate.toFixed(1)}% Win Rate
+                                </Typography>
+                                <LinearProgress
+                                    variant="determinate"
+                                    value={stats.recentWinRate}
+                                    color={stats.recentWinRate >= 50 ? 'success' : 'error'}
+                                    sx={{ mt: 1 }}
+                                />
+                            </Box>
+                        </CardContent>
+                    </Card>
+                </Box>
 
-            {/* Quick Stats */}
-            <Grid item xs={12} md={4}>
-                <Card>
-                    <CardContent>
-                        <Typography variant="h6" gutterBottom>
-                            Quick Stats
-                        </Typography>
-                        <Box sx={{ mb: 1 }}>
-                            <Chip
-                                label={`Total Trades: ${stats.totalTrades}`}
-                                color="primary"
-                                size="small"
-                                sx={{ mr: 1, mb: 1 }}
-                            />
-                            <Chip
-                                label={`Winning: ${stats.winningTrades}`}
-                                color="success"
-                                size="small"
-                                sx={{ mr: 1, mb: 1 }}
-                            />
-                            <Chip
-                                label={`Losing: ${stats.losingTrades}`}
-                                color="error"
-                                size="small"
-                                sx={{ mb: 1 }}
-                            />
-                        </Box>
-                        <Typography variant="body2">
-                            Risk/Reward: {stats.avgRR.toFixed(2)}:1
-                        </Typography>
-                        <Typography variant="body2">
-                            Max Drawdown: ${stats.maxDrawdown.toFixed(2)}
-                        </Typography>
-                    </CardContent>
-                </Card>
-            </Grid>
+                <Box sx={{ width: { xs: '100%', md: '32%' } }}>
+                    <Card>
+                        <CardContent>
+                            <Typography variant="h6" gutterBottom>
+                                Quick Stats
+                            </Typography>
+                            <Box sx={{ mb: 1 }}>
+                                <Chip
+                                    label={`Total Trades: ${stats.totalTrades}`}
+                                    color="primary"
+                                    size="small"
+                                    sx={{ mr: 1, mb: 1 }}
+                                />
+                                <Chip
+                                    label={`Winning: ${stats.winningTrades}`}
+                                    color="success"
+                                    size="small"
+                                    sx={{ mr: 1, mb: 1 }}
+                                />
+                                <Chip
+                                    label={`Losing: ${stats.losingTrades}`}
+                                    color="error"
+                                    size="small"
+                                    sx={{ mb: 1 }}
+                                />
+                            </Box>
+                            <Typography variant="body2">
+                                Risk/Reward: {stats.avgRR.toFixed(2)}:1
+                            </Typography>
+                            <Typography variant="body2">
+                                Max Drawdown: ${stats.maxDrawdown.toFixed(2)}
+                            </Typography>
+                        </CardContent>
+                    </Card>
+                </Box>
+            </Box>
 
             {/* Strategy Performance */}
-            <Grid item xs={12}>
+            <Box sx={{ width: '100%' }}>
                 <Card>
                     <CardContent>
                         <Typography variant="h6" gutterBottom>
                             Strategy Performance
                         </Typography>
-                        <Grid container spacing={2}>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                             {Object.entries(stats.strategyStats).map(([strategy, stat]) => (
-                                <Grid item xs={12} sm={6} md={3} key={strategy}>
-                                    <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
-                                        <Typography variant="subtitle2">{strategy}</Typography>
-                                        <Typography variant="h6" color={stat.winRate >= 50 ? 'success.main' : 'error.main'}>
-                                            {stat.winRate.toFixed(1)}%
-                                        </Typography>
-                                        <Typography variant="body2">
-                                            {stat.count} trades
-                                        </Typography>
-                                    </Box>
-                                </Grid>
+                                <Box
+                                    key={strategy}
+                                    sx={{
+                                        width: { xs: '100%', sm: '48%', md: '23%' },
+                                        p: 2,
+                                        bgcolor: 'background.paper',
+                                        borderRadius: 1
+                                    }}
+                                >
+                                    <Typography variant="subtitle2">{strategy}</Typography>
+                                    <Typography variant="h6" color={stat.winRate >= 50 ? 'success.main' : 'error.main'}>
+                                        {stat.winRate.toFixed(1)}%
+                                    </Typography>
+                                    <Typography variant="body2">
+                                        {stat.count} trades
+                                    </Typography>
+                                </Box>
                             ))}
-                        </Grid>
+                        </Box>
                     </CardContent>
                 </Card>
-            </Grid>
-        </Grid>
+            </Box>
+        </Box>
     )
 }
 

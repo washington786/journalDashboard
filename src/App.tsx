@@ -1,5 +1,6 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { ThemeProvider, createTheme } from '@mui/material/styles'
+
 import {
   CssBaseline,
   Box,
@@ -11,8 +12,9 @@ import {
   AppBar,
   Toolbar,
   Typography,
-  Divider
 } from '@mui/material'
+
+import MenuBookIcon from '@mui/icons-material/MenuBook';
 import DashboardIcon from '@mui/icons-material/Dashboard'
 import AddIcon from '@mui/icons-material/Add'
 import ListIcon from '@mui/icons-material/List'
@@ -20,8 +22,11 @@ import AnalyticsIcon from '@mui/icons-material/Analytics'
 
 import Dashboard from './components/Dashboard'
 import TradeForm from './components/TradeForm'
-import TradeList from './components/TradeList'
 import Statistics from './components/Statistics'
+import TradingInstructions from './components/TradingInstructions';
+import TradeList from './components/TradeList';
+import SmartAnalyzer from './components/SmartAnalyzer';
+import { PolylineOutlined } from '@mui/icons-material';
 
 const theme = createTheme({
   palette: {
@@ -47,8 +52,10 @@ function App() {
   const pages = [
     { text: 'Dashboard', icon: <DashboardIcon />, component: <Dashboard /> },
     { text: 'New Trade', icon: <AddIcon />, component: <TradeForm /> },
+    { text: 'Smart Analyzer', icon: <PolylineOutlined />, component: <SmartAnalyzer /> },
     { text: 'Trade History', icon: <ListIcon />, component: <TradeList /> },
     { text: 'Statistics', icon: <AnalyticsIcon />, component: <Statistics /> },
+    { text: 'Guideline', icon: <MenuBookIcon />, component: <TradingInstructions /> },
   ]
 
   return (
@@ -56,11 +63,7 @@ function App() {
       <CssBaseline />
 
       <Box sx={{ display: 'flex' }}>
-        {/* AppBar */}
-        <AppBar
-          position="fixed"
-          sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}
-        >
+        <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
           <Toolbar>
             <Typography variant="h6" noWrap component="div">
               🎯 Homie's Trading Journal
@@ -68,7 +71,6 @@ function App() {
           </Toolbar>
         </AppBar>
 
-        {/* Drawer */}
         <Drawer
           variant="permanent"
           sx={{
@@ -78,7 +80,6 @@ function App() {
               width: drawerWidth,
               boxSizing: 'border-box',
               backgroundColor: '#1e1e1e',
-              borderRight: '1px solid #333'
             },
           }}
         >
@@ -87,7 +88,6 @@ function App() {
             <List>
               {pages.map((page, index) => (
                 <ListItem
-                  button
                   key={page.text}
                   onClick={() => setActivePage(index)}
                   sx={{
@@ -97,15 +97,11 @@ function App() {
                     },
                     borderRadius: '0 20px 20px 0',
                     mr: 2,
-                    mb: 1
+                    mb: 1,
+                    cursor: 'pointer'
                   }}
                 >
-                  <ListItemIcon
-                    sx={{
-                      color: activePage === index ? '#1976d2' : 'rgba(255, 255, 255, 0.7)',
-                      minWidth: '40px'
-                    }}
-                  >
+                  <ListItemIcon sx={{ color: activePage === index ? '#1976d2' : 'rgba(255, 255, 255, 0.7)' }}>
                     {page.icon}
                   </ListItemIcon>
                   <ListItemText
@@ -113,33 +109,15 @@ function App() {
                     sx={{
                       '& .MuiListItemText-primary': {
                         color: activePage === index ? '#fff' : 'rgba(255, 255, 255, 0.7)',
-                        fontWeight: activePage === index ? 600 : 400
                       }
                     }}
                   />
                 </ListItem>
               ))}
             </List>
-
-            <Divider sx={{ my: 2, backgroundColor: 'rgba(255, 255, 255, 0.1)' }} />
-
-            {/* Quick Stats in Sidebar */}
-            <List>
-              <ListItem>
-                <ListItemText
-                  primary="Quick Stats"
-                  secondary="Your trading performance"
-                  sx={{
-                    '& .MuiListItemText-primary': { color: '#1976d2', fontWeight: 600 },
-                    '& .MuiListItemText-secondary': { color: 'rgba(255, 255, 255, 0.5)' }
-                  }}
-                />
-              </ListItem>
-            </List>
           </Box>
         </Drawer>
 
-        {/* Main Content */}
         <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
           <Toolbar />
           {pages[activePage].component}
