@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import localforage from 'localforage'
 import type { Trade } from '../types/trade'
 
-
 const TRADES_STORE = 'trading_journal_trades'
 
 export const useTrades = () => {
